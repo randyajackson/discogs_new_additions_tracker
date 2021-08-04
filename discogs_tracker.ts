@@ -1,9 +1,11 @@
 import { Schema, model, connect } from 'mongoose';
+import * as fs from 'fs';
+
 const mongoose = require('mongoose');
 const axios = require('axios');
 
 const api_url: string = "http://api.discogs.com/releases/";
-const start_id: number = 19638718;
+let start_id: number;
 
 interface album_record {
     link: String,
@@ -15,7 +17,8 @@ interface album_record {
     styles: [String],
     title: String,
     date_added: String,
-    number_for_sale: String    
+    number_for_sale: String,
+    lowest_price: String    
 }
 
 const recordSchema = new Schema<album_record>({
@@ -29,6 +32,7 @@ const recordSchema = new Schema<album_record>({
     title: String,
     date_added: String,
     number_for_sale: String,
+    lowest_price: String 
 },
 {timestamps: { createdAt: 'created_at'}});
 
@@ -44,32 +48,74 @@ db.once('open', function() {
 
 async function beginCollection()
 {
-    initialCollection();    
+    initialCollection();  
+    
+    let interval = setInterval( async function (){
+        start_id += 3;
+        let data = fs.readFileSync('./currentID', 'utf8');
+        data = String(start_id);
+        fs.writeFileSync('./currentID', data);
+
+        try{
+            getData();
+        }
+        catch(err){
+            setTimeout(function(){ getData(); }, 600000);
+        }
+
+    }, 3000);
+
 }
 
-async function initialCollection() 
+async function initialCollection()
 {
-    //figure out how to save/get the latest id
-    const response = await axios.get(api_url + String(start_id));
-    console.log(response.data);
+    const data = fs.readFileSync('./currentID', 'utf8');
+    start_id = Number(data.toString());
+    getData();
+}
+
+async function getData(){
 
     var recordModelBuy = db.model('new_record_purchasable', recordSchema);
     var recordModelAll = db2.model('new_record_all', recordSchema);
+
+    const response = await axios.get(api_url + String(start_id));
+    console.log(response.data);
     
-    recordModelAll.create({
-        link: response.data["uri"],
-        api_link: response.data["resource_url"],
-        cover_art: "test",
-        release_year: response.data["year"],
-        artist_name: response.data["artists"]["name"],
-        genres: response.data["genres"],
-        styles: response.data["styles"],
-        title: response.data["title"],
-        date_added: response.data["date_added"],
-        number_for_sale: response.data["num_for_sale"],
-    }, 
-    function (err: Error, release: Request) {
-        if(err) return console.error(err);
-    });
+    if(response.data["num_for_sale"] === 0){
+        recordModelAll.create({
+            link: response.data["uri"],
+            api_link: response.data["resource_url"],
+            cover_art: "test",
+            release_year: response.data["year"],
+            artist_name: response.data["artists"]["name"],
+            genres: response.data["genres"],
+            styles: response.data["styles"],
+            title: response.data["title"],
+            date_added: response.data["date_added"],
+            number_for_sale: response.data["num_for_sale"],
+            lowest_price: response.data["lowest_price"],
+        }, 
+        function (err: Error, release: Request) {
+            if(err) return console.error(err);
+        });
+    }else{
+        recordModelBuy.create({
+            link: response.data["uri"],
+            api_link: response.data["resource_url"],
+            cover_art: "test",
+            release_year: response.data["year"],
+            artist_name: response.data["artists"]["name"],
+            genres: response.data["genres"],
+            styles: response.data["styles"],
+            title: response.data["title"],
+            date_added: response.data["date_added"],
+            number_for_sale: response.data["num_for_sale"],
+            lowest_price: response.data["lowest_price"],
+        }, 
+        function (err: Error, release: Request) {
+            if(err) return console.error(err);
+        });
+    }
 
 }

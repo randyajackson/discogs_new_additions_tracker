@@ -1,4 +1,23 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -37,10 +56,11 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 var mongoose_1 = require("mongoose");
+var fs = __importStar(require("fs"));
 var mongoose = require('mongoose');
 var axios = require('axios');
 var api_url = "http://api.discogs.com/releases/";
-var start_id = 19638718;
+var start_id;
 var recordSchema = new mongoose_1.Schema({
     link: String,
     api_link: String,
@@ -52,6 +72,7 @@ var recordSchema = new mongoose_1.Schema({
     title: String,
     date_added: String,
     number_for_sale: String,
+    lowest_price: String
 }, { timestamps: { createdAt: 'created_at' } });
 var db = mongoose.connect('mongodb://localhost/new_record_purchasable', { useNewUrlParser: true });
 var db2 = mongoose.createConnection('mongodb://localhost/new_record_all', { useNewUrlParser: true });
@@ -62,38 +83,90 @@ db.once('open', function () {
 });
 function beginCollection() {
     return __awaiter(this, void 0, void 0, function () {
+        var interval;
         return __generator(this, function (_a) {
             initialCollection();
+            interval = setInterval(function () {
+                return __awaiter(this, void 0, void 0, function () {
+                    var data;
+                    return __generator(this, function (_a) {
+                        start_id += 3;
+                        data = fs.readFileSync('./currentID', 'utf8');
+                        data = String(start_id);
+                        fs.writeFileSync('./currentID', data);
+                        try {
+                            getData();
+                        }
+                        catch (err) {
+                            setTimeout(function () { getData(); }, 600000);
+                        }
+                        return [2 /*return*/];
+                    });
+                });
+            }, 3000);
             return [2 /*return*/];
         });
     });
 }
 function initialCollection() {
     return __awaiter(this, void 0, void 0, function () {
-        var response, recordModelBuy, recordModelAll;
+        var data;
+        return __generator(this, function (_a) {
+            data = fs.readFileSync('./currentID', 'utf8');
+            start_id = Number(data.toString());
+            getData();
+            return [2 /*return*/];
+        });
+    });
+}
+function getData() {
+    return __awaiter(this, void 0, void 0, function () {
+        var recordModelBuy, recordModelAll, response;
         return __generator(this, function (_a) {
             switch (_a.label) {
-                case 0: return [4 /*yield*/, axios.get(api_url + String(start_id))];
+                case 0:
+                    recordModelBuy = db.model('new_record_purchasable', recordSchema);
+                    recordModelAll = db2.model('new_record_all', recordSchema);
+                    return [4 /*yield*/, axios.get(api_url + String(start_id))];
                 case 1:
                     response = _a.sent();
                     console.log(response.data);
-                    recordModelBuy = db.model('new_record_purchasable', recordSchema);
-                    recordModelAll = db2.model('new_record_all', recordSchema);
-                    recordModelAll.create({
-                        link: response.data["uri"],
-                        api_link: response.data["resource_url"],
-                        cover_art: "test",
-                        release_year: response.data["year"],
-                        artist_name: response.data["artists"]["name"],
-                        genres: response.data["genres"],
-                        styles: response.data["styles"],
-                        title: response.data["title"],
-                        date_added: response.data["date_added"],
-                        number_for_sale: response.data["num_for_sale"],
-                    }, function (err, release) {
-                        if (err)
-                            return console.error(err);
-                    });
+                    if (response.data["num_for_sale"] === 0) {
+                        recordModelAll.create({
+                            link: response.data["uri"],
+                            api_link: response.data["resource_url"],
+                            cover_art: "test",
+                            release_year: response.data["year"],
+                            artist_name: response.data["artists"]["name"],
+                            genres: response.data["genres"],
+                            styles: response.data["styles"],
+                            title: response.data["title"],
+                            date_added: response.data["date_added"],
+                            number_for_sale: response.data["num_for_sale"],
+                            lowest_price: response.data["lowest_price"],
+                        }, function (err, release) {
+                            if (err)
+                                return console.error(err);
+                        });
+                    }
+                    else {
+                        recordModelBuy.create({
+                            link: response.data["uri"],
+                            api_link: response.data["resource_url"],
+                            cover_art: "test",
+                            release_year: response.data["year"],
+                            artist_name: response.data["artists"]["name"],
+                            genres: response.data["genres"],
+                            styles: response.data["styles"],
+                            title: response.data["title"],
+                            date_added: response.data["date_added"],
+                            number_for_sale: response.data["num_for_sale"],
+                            lowest_price: response.data["lowest_price"],
+                        }, function (err, release) {
+                            if (err)
+                                return console.error(err);
+                        });
+                    }
                     return [2 /*return*/];
             }
         });
