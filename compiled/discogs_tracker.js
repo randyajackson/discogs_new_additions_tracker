@@ -57,6 +57,8 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
 Object.defineProperty(exports, "__esModule", { value: true });
 var mongoose_1 = require("mongoose");
 var fs = __importStar(require("fs"));
+var cheerio = __importStar(require("cheerio"));
+var request = require('request');
 var mongoose = require('mongoose');
 var axios = require('axios');
 var api_url = "http://api.discogs.com/releases/";
@@ -114,6 +116,7 @@ function initialCollection() {
         return __generator(this, function (_a) {
             data = fs.readFileSync('./currentID', 'utf8');
             start_id = Number(data.toString());
+            start_id = 19721362;
             getData();
             return [2 /*return*/];
         });
@@ -121,7 +124,7 @@ function initialCollection() {
 }
 function getData() {
     return __awaiter(this, void 0, void 0, function () {
-        var recordModelBuy, recordModelAll, response;
+        var recordModelBuy, recordModelAll, response, getCover, $, cover;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -130,12 +133,18 @@ function getData() {
                     return [4 /*yield*/, axios.get(api_url + String(start_id))];
                 case 1:
                     response = _a.sent();
+                    return [4 /*yield*/, axios.get(response.data["uri"])];
+                case 2:
+                    getCover = _a.sent();
+                    $ = cheerio.load(getCover.data);
+                    cover = $('picture').children('img').eq(0).attr('src');
                     console.log(response.data);
+                    console.log(cover);
                     if (response.data["num_for_sale"] === 0) {
                         recordModelAll.create({
                             link: response.data["uri"],
                             api_link: response.data["resource_url"],
-                            cover_art: "test",
+                            cover_art: (cover !== undefined) ? cover : ' ',
                             release_year: response.data["year"],
                             artist_name: response.data["artists"]["name"],
                             genres: response.data["genres"],
@@ -153,7 +162,7 @@ function getData() {
                         recordModelBuy.create({
                             link: response.data["uri"],
                             api_link: response.data["resource_url"],
-                            cover_art: "test",
+                            cover_art: (cover !== undefined) ? cover : ' ',
                             release_year: response.data["year"],
                             artist_name: response.data["artists"]["name"],
                             genres: response.data["genres"],

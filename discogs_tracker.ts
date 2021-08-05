@@ -1,6 +1,8 @@
 import { Schema, model, connect } from 'mongoose';
 import * as fs from 'fs';
+import * as cheerio from 'cheerio';
 
+const request = require('request');
 const mongoose = require('mongoose');
 const axios = require('axios');
 
@@ -71,6 +73,8 @@ async function initialCollection()
 {
     const data = fs.readFileSync('./currentID', 'utf8');
     start_id = Number(data.toString());
+
+    start_id = 19721362;
     getData();
 }
 
@@ -80,13 +84,18 @@ async function getData(){
     var recordModelAll = db2.model('new_record_all', recordSchema);
 
     const response = await axios.get(api_url + String(start_id));
+    const getCover = await axios.get(response.data["uri"]);
+
+    let $ = cheerio.load(getCover.data);
+    let cover = $('picture').children('img').eq(0).attr('src');
     console.log(response.data);
+    console.log(cover);
     
     if(response.data["num_for_sale"] === 0){
         recordModelAll.create({
             link: response.data["uri"],
             api_link: response.data["resource_url"],
-            cover_art: "test",
+            cover_art: (cover !== undefined) ? cover : ' ',
             release_year: response.data["year"],
             artist_name: response.data["artists"]["name"],
             genres: response.data["genres"],
@@ -103,7 +112,7 @@ async function getData(){
         recordModelBuy.create({
             link: response.data["uri"],
             api_link: response.data["resource_url"],
-            cover_art: "test",
+            cover_art: (cover !== undefined) ? cover : ' ',
             release_year: response.data["year"],
             artist_name: response.data["artists"]["name"],
             genres: response.data["genres"],
