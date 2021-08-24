@@ -73,8 +73,6 @@ async function initialCollection()
 {
     const data = fs.readFileSync('./currentID', 'utf8');
     start_id = Number(data.toString());
-
-    start_id = 19721362;
     getData();
 }
 
@@ -83,6 +81,7 @@ async function getData(){
     var recordModelBuy = db.model('new_record_purchasable', recordSchema);
     var recordModelAll = db2.model('new_record_all', recordSchema);
 
+    
     const response = await axios.get(api_url + String(start_id));
     const getCover = await axios.get(response.data["uri"]);
 
@@ -90,8 +89,39 @@ async function getData(){
     let cover = $('picture').children('img').eq(0).attr('src');
     console.log(response.data);
     console.log(cover);
-    
+
     if(response.data["num_for_sale"] === 0){
+
+        const findCountAll = await recordModelAll.collection.countDocuments({});
+
+        if(findCountAll > 10000){
+            const checkIfAvailable = recordModelAll.collection.find().sort( { 'timestamp': -1 } ).limit(1);
+            const purchasableResponse = await axios.get(checkIfAvailable["api_link"]);
+
+            if(purchasableResponse.data["num_for_sale"] === 0){
+                recordModelAll.collection.findOneAndDelete().sort({ "timestamp": -1 });
+            }
+            else{
+                recordModelBuy.create({
+                    link: response.data["uri"],
+                    api_link: response.data["resource_url"],
+                    cover_art: (cover !== undefined) ? cover : ' ',
+                    release_year: response.data["year"],
+                    artist_name: response.data["artists"]["name"],
+                    genres: response.data["genres"],
+                    styles: response.data["styles"],
+                    title: response.data["title"],
+                    date_added: response.data["date_added"],
+                    number_for_sale: response.data["num_for_sale"],
+                    lowest_price: response.data["lowest_price"],
+                }, 
+                function (err: Error, release: Request) {
+                    if(err) return console.error(err);
+                });    
+            }
+            
+        }
+
         recordModelAll.create({
             link: response.data["uri"],
             api_link: response.data["resource_url"],
@@ -109,22 +139,30 @@ async function getData(){
             if(err) return console.error(err);
         });
     }else{
-        recordModelBuy.create({
-            link: response.data["uri"],
-            api_link: response.data["resource_url"],
-            cover_art: (cover !== undefined) ? cover : ' ',
-            release_year: response.data["year"],
-            artist_name: response.data["artists"]["name"],
-            genres: response.data["genres"],
-            styles: response.data["styles"],
-            title: response.data["title"],
-            date_added: response.data["date_added"],
-            number_for_sale: response.data["num_for_sale"],
-            lowest_price: response.data["lowest_price"],
-        }, 
-        function (err: Error, release: Request) {
-            if(err) return console.error(err);
-        });
+
+        const findCountBuyable = await recordModelBuy.collection.countDocuments({});
+
+        if(findCountBuyable > 5000){
+            recordModelBuy.collection.findOneAndDelete().sort({ "timestamp": -1 });    
+        }
+        else{
+            recordModelBuy.create({
+                link: response.data["uri"],
+                api_link: response.data["resource_url"],
+                cover_art: (cover !== undefined) ? cover : ' ',
+                release_year: response.data["year"],
+                artist_name: response.data["artists"]["name"],
+                genres: response.data["genres"],
+                styles: response.data["styles"],
+                title: response.data["title"],
+                date_added: response.data["date_added"],
+                number_for_sale: response.data["num_for_sale"],
+                lowest_price: response.data["lowest_price"],
+            }, 
+            function (err: Error, release: Request) {
+                if(err) return console.error(err);
+            });
+        }
     }
 
 }

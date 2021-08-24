@@ -116,7 +116,6 @@ function initialCollection() {
         return __generator(this, function (_a) {
             data = fs.readFileSync('./currentID', 'utf8');
             start_id = Number(data.toString());
-            start_id = 19721362;
             getData();
             return [2 /*return*/];
         });
@@ -124,7 +123,7 @@ function initialCollection() {
 }
 function getData() {
     return __awaiter(this, void 0, void 0, function () {
-        var recordModelBuy, recordModelAll, response, getCover, $, cover;
+        var recordModelBuy, recordModelAll, response, getCover, $, cover, findCountAll, checkIfAvailable, purchasableResponse, findCountBuyable;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -140,23 +139,17 @@ function getData() {
                     cover = $('picture').children('img').eq(0).attr('src');
                     console.log(response.data);
                     console.log(cover);
-                    if (response.data["num_for_sale"] === 0) {
-                        recordModelAll.create({
-                            link: response.data["uri"],
-                            api_link: response.data["resource_url"],
-                            cover_art: (cover !== undefined) ? cover : ' ',
-                            release_year: response.data["year"],
-                            artist_name: response.data["artists"]["name"],
-                            genres: response.data["genres"],
-                            styles: response.data["styles"],
-                            title: response.data["title"],
-                            date_added: response.data["date_added"],
-                            number_for_sale: response.data["num_for_sale"],
-                            lowest_price: response.data["lowest_price"],
-                        }, function (err, release) {
-                            if (err)
-                                return console.error(err);
-                        });
+                    if (!(response.data["num_for_sale"] === 0)) return [3 /*break*/, 6];
+                    return [4 /*yield*/, recordModelAll.collection.countDocuments({})];
+                case 3:
+                    findCountAll = _a.sent();
+                    if (!(findCountAll > 10000)) return [3 /*break*/, 5];
+                    checkIfAvailable = recordModelAll.collection.find().sort({ 'timestamp': -1 }).limit(1);
+                    return [4 /*yield*/, axios.get(checkIfAvailable["api_link"])];
+                case 4:
+                    purchasableResponse = _a.sent();
+                    if (purchasableResponse.data["num_for_sale"] === 0) {
+                        recordModelAll.collection.findOneAndDelete().sort({ "timestamp": -1 });
                     }
                     else {
                         recordModelBuy.create({
@@ -176,7 +169,51 @@ function getData() {
                                 return console.error(err);
                         });
                     }
-                    return [2 /*return*/];
+                    _a.label = 5;
+                case 5:
+                    recordModelAll.create({
+                        link: response.data["uri"],
+                        api_link: response.data["resource_url"],
+                        cover_art: (cover !== undefined) ? cover : ' ',
+                        release_year: response.data["year"],
+                        artist_name: response.data["artists"]["name"],
+                        genres: response.data["genres"],
+                        styles: response.data["styles"],
+                        title: response.data["title"],
+                        date_added: response.data["date_added"],
+                        number_for_sale: response.data["num_for_sale"],
+                        lowest_price: response.data["lowest_price"],
+                    }, function (err, release) {
+                        if (err)
+                            return console.error(err);
+                    });
+                    return [3 /*break*/, 8];
+                case 6: return [4 /*yield*/, recordModelBuy.collection.countDocuments({})];
+                case 7:
+                    findCountBuyable = _a.sent();
+                    if (findCountBuyable > 5000) {
+                        recordModelBuy.collection.findOneAndDelete().sort({ "timestamp": -1 });
+                    }
+                    else {
+                        recordModelBuy.create({
+                            link: response.data["uri"],
+                            api_link: response.data["resource_url"],
+                            cover_art: (cover !== undefined) ? cover : ' ',
+                            release_year: response.data["year"],
+                            artist_name: response.data["artists"]["name"],
+                            genres: response.data["genres"],
+                            styles: response.data["styles"],
+                            title: response.data["title"],
+                            date_added: response.data["date_added"],
+                            number_for_sale: response.data["num_for_sale"],
+                            lowest_price: response.data["lowest_price"],
+                        }, function (err, release) {
+                            if (err)
+                                return console.error(err);
+                        });
+                    }
+                    _a.label = 8;
+                case 8: return [2 /*return*/];
             }
         });
     });
