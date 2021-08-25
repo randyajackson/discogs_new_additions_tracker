@@ -61,6 +61,7 @@ var cheerio = __importStar(require("cheerio"));
 var request = require('request');
 var mongoose = require('mongoose');
 var axios = require('axios');
+require('dotenv').config({ path: '../.env' });
 var api_url = "http://api.discogs.com/releases/";
 var start_id;
 var recordSchema = new mongoose_1.Schema({
@@ -76,8 +77,8 @@ var recordSchema = new mongoose_1.Schema({
     number_for_sale: String,
     lowest_price: String
 }, { timestamps: { createdAt: 'created_at' } });
-var db = mongoose.connect('mongodb://localhost/new_record_purchasable', { useNewUrlParser: true });
-var db2 = mongoose.createConnection('mongodb://localhost/new_record_all', { useNewUrlParser: true });
+var db = mongoose.connect(process.env.PURCHASABLE, { useNewUrlParser: true });
+var db2 = mongoose.createConnection(process.env.NON_PURCHASABLE, { useNewUrlParser: true });
 db = mongoose.connection;
 db.on('error', console.error.bind(console, 'connection error: '));
 db.once('open', function () {

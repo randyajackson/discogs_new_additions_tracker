@@ -5,6 +5,7 @@ import * as cheerio from 'cheerio';
 const request = require('request');
 const mongoose = require('mongoose');
 const axios = require('axios');
+require('dotenv').config({ path: '../.env' });
 
 const api_url: string = "http://api.discogs.com/releases/";
 let start_id: number;
@@ -38,8 +39,8 @@ const recordSchema = new Schema<album_record>({
 },
 {timestamps: { createdAt: 'created_at'}});
 
-var db  =  mongoose.connect('mongodb://localhost/new_record_purchasable', {useNewUrlParser: true});
-var db2 =  mongoose.createConnection('mongodb://localhost/new_record_all', {useNewUrlParser: true});
+var db  =  mongoose.connect(process.env.PURCHASABLE, {useNewUrlParser: true});
+var db2 =  mongoose.createConnection(process.env.NON_PURCHASABLE, {useNewUrlParser: true});
 
 db = mongoose.connection;
 db.on('error', console.error.bind(console, 'connection error: '));
