@@ -68,14 +68,14 @@ var recordSchema = new mongoose_1.Schema({
     link: String,
     api_link: String,
     cover_art: String,
-    release_year: String,
+    release_year: Number,
     artist_name: String,
     genres: Array,
     styles: Array,
     title: String,
     date_added: String,
-    number_for_sale: String,
-    lowest_price: String
+    number_for_sale: Number,
+    lowest_price: Number
 }, { timestamps: { createdAt: 'created_at' } });
 var db = mongoose.connect(process.env.PURCHASABLE, { useNewUrlParser: true });
 var db2 = mongoose.createConnection(process.env.NON_PURCHASABLE, { useNewUrlParser: true });
@@ -89,20 +89,15 @@ function beginCollection() {
         var interval;
         return __generator(this, function (_a) {
             initialCollection();
+            start_id += 3;
             interval = setInterval(function () {
                 return __awaiter(this, void 0, void 0, function () {
                     var data;
                     return __generator(this, function (_a) {
-                        start_id += 3;
                         data = fs.readFileSync('./currentID', 'utf8');
                         data = String(start_id);
                         fs.writeFileSync('./currentID', data);
-                        try {
-                            getData();
-                        }
-                        catch (err) {
-                            setTimeout(function () { getData(); }, 600000);
-                        }
+                        getData().then(function () { start_id += 3; }).catch(function (errors) { setTimeout(function () { getData(); }, 600000); });
                         return [2 /*return*/];
                     });
                 });

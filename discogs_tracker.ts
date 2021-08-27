@@ -14,28 +14,28 @@ interface album_record {
     link: String,
     api_link: String,
     cover_art: String,
-    release_year: String,
+    release_year: Number,
     artist_name: String,
     genres: [String],
     styles: [String],
     title: String,
     date_added: String,
-    number_for_sale: String,
-    lowest_price: String    
+    number_for_sale: Number,
+    lowest_price: Number    
 }
 
 const recordSchema = new Schema<album_record>({
     link: String,
     api_link: String,
     cover_art: String,
-    release_year: String,
+    release_year: Number,
     artist_name: String,
     genres: Array,
     styles: Array,
     title: String,
     date_added: String,
-    number_for_sale: String,
-    lowest_price: String 
+    number_for_sale: Number,
+    lowest_price: Number 
 },
 {timestamps: { createdAt: 'created_at'}});
 
@@ -52,19 +52,16 @@ db.once('open', function() {
 async function beginCollection()
 {
     initialCollection();  
-    
+    start_id += 3;
+
     let interval = setInterval( async function (){
-        start_id += 3;
+
         let data = fs.readFileSync('./currentID', 'utf8');
         data = String(start_id);
         fs.writeFileSync('./currentID', data);
 
-        try{
-            getData();
-        }
-        catch(err){
-            setTimeout(function(){ getData(); }, 600000);
-        }
+        getData().then(() => {start_id += 3;}).catch((errors) => {setTimeout(function(){ getData(); }, 600000);});
+
 
     }, 3000);
 
