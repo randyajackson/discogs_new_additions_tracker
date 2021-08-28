@@ -89,7 +89,6 @@ function beginCollection() {
         var interval;
         return __generator(this, function (_a) {
             initialCollection();
-            start_id += 3;
             interval = setInterval(function () {
                 return __awaiter(this, void 0, void 0, function () {
                     var data;
@@ -97,7 +96,12 @@ function beginCollection() {
                         data = fs.readFileSync('./currentID', 'utf8');
                         data = String(start_id);
                         fs.writeFileSync('./currentID', data);
-                        getData().then(function () { start_id += 3; }).catch(function (errors) { setTimeout(function () { getData(); }, 600000); });
+                        getData().then(function () { }).catch(function (errors) {
+                            setTimeout(function () {
+                                console.log('Error in getdata(), wait 10 minutes and try again' + ' start_id = ' + start_id);
+                                getData();
+                            }, 600000);
+                        });
                         return [2 /*return*/];
                     });
                 });
@@ -133,8 +137,13 @@ function getData() {
                     getCover = _a.sent();
                     $ = cheerio.load(getCover.data);
                     cover = $('picture').children('img').eq(0).attr('src');
-                    console.log(response.data);
-                    console.log(cover);
+                    if (response.status === 200) {
+                        start_id += 3;
+                        console.log('Status 200: adding ' + response.data["resource_url"] + ' ' + response.data["title"] + ' ' + (response.data["genres"] ? response.data["genres"] : '') + (cover ? ' with cover' : ' without cover') + ' and ' + response.data["num_for_sale"] + ' for sale. ' + start_id);
+                    }
+                    else {
+                        console.log('Bad response: ' + response.status);
+                    }
                     if (!(response.data["num_for_sale"] === 0)) return [3 /*break*/, 6];
                     return [4 /*yield*/, recordModelAll.collection.countDocuments({})];
                 case 3:

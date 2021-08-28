@@ -52,7 +52,6 @@ db.once('open', function() {
 async function beginCollection()
 {
     initialCollection();  
-    start_id += 3;
 
     let interval = setInterval( async function (){
 
@@ -60,7 +59,10 @@ async function beginCollection()
         data = String(start_id);
         fs.writeFileSync('./currentID', data);
 
-        getData().then(() => {start_id += 3;}).catch((errors) => {setTimeout(function(){ getData(); }, 600000);});
+        getData().then(() => {}).catch((errors) => {setTimeout(function(){ 
+            console.log('Error in getdata(), wait 10 minutes and try again' + ' start_id = ' + start_id);
+            getData(); 
+        }, 600000);});
 
 
     }, 3000);
@@ -82,11 +84,17 @@ async function getData(){
     
     const response = await axios.get(api_url + String(start_id));
     const getCover = await axios.get(response.data["uri"]);
-
     let $ = cheerio.load(getCover.data);
     let cover = $('picture').children('img').eq(0).attr('src');
-    console.log(response.data);
-    console.log(cover);
+
+    if(response.status === 200){
+        start_id += 3;
+        console.log('Status 200: adding ' + response.data["resource_url"] + ' ' + response.data["title"] + ' ' + (response.data["genres"]?response.data["genres"]:'')  + (cover ? ' with cover' : ' without cover') + ' and ' + response.data["num_for_sale"] + ' for sale. ' + start_id);
+    }
+    else{
+        console.log('Bad response: ' + response.status);
+    }
+
 
     if(response.data["num_for_sale"] === 0){
 
