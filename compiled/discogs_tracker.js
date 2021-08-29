@@ -92,17 +92,40 @@ function beginCollection() {
             interval = setInterval(function () {
                 return __awaiter(this, void 0, void 0, function () {
                     var data;
+                    var _this = this;
                     return __generator(this, function (_a) {
-                        data = fs.readFileSync('./currentID', 'utf8');
-                        data = String(start_id);
-                        fs.writeFileSync('./currentID', data);
-                        getData().then(function () { }).catch(function (errors) {
-                            setTimeout(function () {
-                                console.log('Error in getdata(), wait 10 minutes and try again' + ' start_id = ' + start_id);
-                                getData();
-                            }, 600000);
-                        });
-                        return [2 /*return*/];
+                        switch (_a.label) {
+                            case 0:
+                                data = fs.readFileSync('./currentID', 'utf8');
+                                data = String(start_id);
+                                fs.writeFileSync('./currentID', data);
+                                return [4 /*yield*/, getData()
+                                        .then(function () { })
+                                        .catch(function (errors) {
+                                        (function (errors) { return __awaiter(_this, void 0, void 0, function () {
+                                            return __generator(this, function (_a) {
+                                                setTimeout(function () {
+                                                    return __awaiter(this, void 0, void 0, function () {
+                                                        return __generator(this, function (_a) {
+                                                            switch (_a.label) {
+                                                                case 0:
+                                                                    console.log('Error in getdata(), wait 10 minutes and try again' + ' start_id = ' + start_id);
+                                                                    return [4 /*yield*/, getData()];
+                                                                case 1:
+                                                                    _a.sent();
+                                                                    return [2 /*return*/];
+                                                            }
+                                                        });
+                                                    });
+                                                }, 600000);
+                                                return [2 /*return*/];
+                                            });
+                                        }); });
+                                    })];
+                            case 1:
+                                _a.sent();
+                                return [2 /*return*/];
+                        }
                     });
                 });
             }, 3000);
@@ -137,13 +160,9 @@ function getData() {
                     getCover = _a.sent();
                     $ = cheerio.load(getCover.data);
                     cover = $('picture').children('img').eq(0).attr('src');
-                    if (response.status === 200) {
-                        start_id += 3;
-                        console.log('Status 200: adding ' + response.data["resource_url"] + ' ' + response.data["title"] + ' ' + (response.data["genres"] ? response.data["genres"] : '') + (cover ? ' with cover' : ' without cover') + ' and ' + response.data["num_for_sale"] + ' for sale. ' + start_id);
-                    }
-                    else {
-                        console.log('Bad response: ' + response.status);
-                    }
+                    if (!(response.status === 200)) return [3 /*break*/, 9];
+                    console.log('Status 200: adding ' + response.data["uri"] + ' ' + response.data["title"] + ' ' + (response.data["genres"] ? response.data["genres"] : '') + (cover ? ' with cover' : ' without cover') + ' and ' + response.data["num_for_sale"] + ' for sale. ' + start_id);
+                    start_id += 3;
                     if (!(response.data["num_for_sale"] === 0)) return [3 /*break*/, 6];
                     return [4 /*yield*/, recordModelAll.collection.countDocuments({})];
                 case 3:
@@ -197,7 +216,7 @@ function getData() {
                 case 7:
                     findCountBuyable = _a.sent();
                     if (findCountBuyable > 5000) {
-                        recordModelBuy.collection.findOneAndDelete().sort({ "timestamp": -1 });
+                        recordModelBuy.collection.findOneAndDelete().sort({ "timestamp": 1 });
                     }
                     else {
                         recordModelBuy.create({
@@ -218,7 +237,11 @@ function getData() {
                         });
                     }
                     _a.label = 8;
-                case 8: return [2 /*return*/];
+                case 8: return [3 /*break*/, 10];
+                case 9:
+                    console.log('Bad response: ' + response.status);
+                    _a.label = 10;
+                case 10: return [2 /*return*/];
             }
         });
     });

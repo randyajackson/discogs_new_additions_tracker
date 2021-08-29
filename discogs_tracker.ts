@@ -59,11 +59,14 @@ async function beginCollection()
         data = String(start_id);
         fs.writeFileSync('./currentID', data);
 
-        getData().then(() => {}).catch((errors) => {setTimeout(function(){ 
-            console.log('Error in getdata(), wait 10 minutes and try again' + ' start_id = ' + start_id);
-            getData(); 
-        }, 600000);});
-
+        await getData()
+        .then(() => {})
+        .catch((errors) => {async (errors: Error) => {
+            setTimeout( async function(){ 
+                console.log('Error in getdata(), wait 10 minutes and try again' + ' start_id = ' + start_id);
+                await getData(); 
+            }, 600000);}   
+        }); 
 
     }, 3000);
 
@@ -88,24 +91,62 @@ async function getData(){
     let cover = $('picture').children('img').eq(0).attr('src');
 
     if(response.status === 200){
+        console.log('Status 200: adding ' + response.data["uri"] + ' ' + response.data["title"] + ' ' + (response.data["genres"]?response.data["genres"]:'')  + (cover ? ' with cover' : ' without cover') + ' and ' + response.data["num_for_sale"] + ' for sale. ' + start_id);
         start_id += 3;
-        console.log('Status 200: adding ' + response.data["resource_url"] + ' ' + response.data["title"] + ' ' + (response.data["genres"]?response.data["genres"]:'')  + (cover ? ' with cover' : ' without cover') + ' and ' + response.data["num_for_sale"] + ' for sale. ' + start_id);
-    }
-    else{
-        console.log('Bad response: ' + response.status);
-    }
+        if(response.data["num_for_sale"] === 0){
 
+            const findCountAll = await recordModelAll.collection.countDocuments({});
 
-    if(response.data["num_for_sale"] === 0){
+            if(findCountAll > 10000){
+                const checkIfAvailable = recordModelAll.collection.find().sort( { 'timestamp': -1 } ).limit(1);
+                const purchasableResponse = await axios.get(checkIfAvailable["api_link"]);
 
-        const findCountAll = await recordModelAll.collection.countDocuments({});
+                if(purchasableResponse.data["num_for_sale"] === 0){
+                    recordModelAll.collection.findOneAndDelete().sort({ "timestamp": -1 });
+                }
+                else{
+                    recordModelBuy.create({
+                        link: response.data["uri"],
+                        api_link: response.data["resource_url"],
+                        cover_art: (cover !== undefined) ? cover : ' ',
+                        release_year: response.data["year"],
+                        artist_name: response.data["artists"]["name"],
+                        genres: response.data["genres"],
+                        styles: response.data["styles"],
+                        title: response.data["title"],
+                        date_added: response.data["date_added"],
+                        number_for_sale: response.data["num_for_sale"],
+                        lowest_price: response.data["lowest_price"],
+                    }, 
+                    function (err: Error, release: Request) {
+                        if(err) return console.error(err);
+                    });    
+                }
+                
+            }
 
-        if(findCountAll > 10000){
-            const checkIfAvailable = recordModelAll.collection.find().sort( { 'timestamp': -1 } ).limit(1);
-            const purchasableResponse = await axios.get(checkIfAvailable["api_link"]);
+            recordModelAll.create({
+                link: response.data["uri"],
+                api_link: response.data["resource_url"],
+                cover_art: (cover !== undefined) ? cover : ' ',
+                release_year: response.data["year"],
+                artist_name: response.data["artists"]["name"],
+                genres: response.data["genres"],
+                styles: response.data["styles"],
+                title: response.data["title"],
+                date_added: response.data["date_added"],
+                number_for_sale: response.data["num_for_sale"],
+                lowest_price: response.data["lowest_price"],
+            }, 
+            function (err: Error, release: Request) {
+                if(err) return console.error(err);
+            });
+        }else{
 
-            if(purchasableResponse.data["num_for_sale"] === 0){
-                recordModelAll.collection.findOneAndDelete().sort({ "timestamp": -1 });
+            const findCountBuyable = await recordModelBuy.collection.countDocuments({});
+
+            if(findCountBuyable > 5000){
+                recordModelBuy.collection.findOneAndDelete().sort({ "timestamp": 1 });    
             }
             else{
                 recordModelBuy.create({
@@ -123,52 +164,12 @@ async function getData(){
                 }, 
                 function (err: Error, release: Request) {
                     if(err) return console.error(err);
-                });    
+                });
             }
-            
         }
-
-        recordModelAll.create({
-            link: response.data["uri"],
-            api_link: response.data["resource_url"],
-            cover_art: (cover !== undefined) ? cover : ' ',
-            release_year: response.data["year"],
-            artist_name: response.data["artists"]["name"],
-            genres: response.data["genres"],
-            styles: response.data["styles"],
-            title: response.data["title"],
-            date_added: response.data["date_added"],
-            number_for_sale: response.data["num_for_sale"],
-            lowest_price: response.data["lowest_price"],
-        }, 
-        function (err: Error, release: Request) {
-            if(err) return console.error(err);
-        });
-    }else{
-
-        const findCountBuyable = await recordModelBuy.collection.countDocuments({});
-
-        if(findCountBuyable > 5000){
-            recordModelBuy.collection.findOneAndDelete().sort({ "timestamp": -1 });    
-        }
-        else{
-            recordModelBuy.create({
-                link: response.data["uri"],
-                api_link: response.data["resource_url"],
-                cover_art: (cover !== undefined) ? cover : ' ',
-                release_year: response.data["year"],
-                artist_name: response.data["artists"]["name"],
-                genres: response.data["genres"],
-                styles: response.data["styles"],
-                title: response.data["title"],
-                date_added: response.data["date_added"],
-                number_for_sale: response.data["num_for_sale"],
-                lowest_price: response.data["lowest_price"],
-            }, 
-            function (err: Error, release: Request) {
-                if(err) return console.error(err);
-            });
-        }
+}
+    else{
+        console.log('Bad response: ' + response.status);
     }
 
 }
