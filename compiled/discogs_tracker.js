@@ -64,6 +64,7 @@ var axios = require('axios');
 require('dotenv').config({ path: '../.env' });
 var api_url = "http://api.discogs.com/releases/";
 var start_id;
+var badTries = 0;
 var recordSchema = new mongoose_1.Schema({
     link: String,
     api_link: String,
@@ -109,7 +110,10 @@ function beginCollection() {
                                                         return __generator(this, function (_a) {
                                                             switch (_a.label) {
                                                                 case 0:
-                                                                    console.log('Error in getdata(), wait 10 minutes and try again' + ' start_id = ' + start_id);
+                                                                    console.log('Error in getdata(), wait 5 minutes and try again' + ' start_id = ' + start_id);
+                                                                    badTries += 1;
+                                                                    if (badTries > 3)
+                                                                        start_id += 3;
                                                                     return [4 /*yield*/, getData()];
                                                                 case 1:
                                                                     _a.sent();
@@ -117,7 +121,7 @@ function beginCollection() {
                                                             }
                                                         });
                                                     });
-                                                }, 600000);
+                                                }, 300000);
                                                 return [2 /*return*/];
                                             });
                                         }); });
@@ -146,7 +150,7 @@ function initialCollection() {
 }
 function getData() {
     return __awaiter(this, void 0, void 0, function () {
-        var recordModelBuy, recordModelAll, response, getCover, $, cover, findCountAll, checkIfAvailable, purchasableResponse, findCountBuyable;
+        var recordModelBuy, recordModelAll, response, getCover, $, cover, findCountAll, checkIfAvailable, purchasableResponse, getCoverRetry, findCountBuyable;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -160,23 +164,35 @@ function getData() {
                     getCover = _a.sent();
                     $ = cheerio.load(getCover.data);
                     cover = $('picture').children('img').eq(0).attr('src');
-                    if (!(response.status === 200)) return [3 /*break*/, 9];
-                    console.log('Status 200: adding ' + response.data["uri"] + ' ' + response.data["title"] + ' ' + (response.data["genres"] ? response.data["genres"] : '') + (cover ? ' with cover' : ' without cover') + ' and ' + response.data["num_for_sale"] + ' for sale. ' + start_id);
+                    if (!(response.status === 200)) return [3 /*break*/, 15];
+                    badTries = 0;
                     start_id += 3;
-                    if (!(response.data["num_for_sale"] === 0)) return [3 /*break*/, 6];
+                    console.log('Status 200: adding ' + response.data["uri"] + ' ' + response.data["title"] + ' ' + (response.data["genres"] ? response.data["genres"] : '') + (cover ? ' with cover' : ' without cover') + ' and ' + response.data["num_for_sale"] + ' for sale. ' + start_id);
+                    if (!(response.data["num_for_sale"] === 0)) return [3 /*break*/, 12];
                     return [4 /*yield*/, recordModelAll.collection.countDocuments({})];
                 case 3:
                     findCountAll = _a.sent();
-                    if (!(findCountAll > 10000)) return [3 /*break*/, 5];
-                    checkIfAvailable = recordModelAll.collection.find().sort({ 'timestamp': -1 }).limit(1);
-                    return [4 /*yield*/, axios.get(checkIfAvailable["api_link"])];
+                    if (!(findCountAll > 10000)) return [3 /*break*/, 11];
+                    return [4 /*yield*/, recordModelAll.findOne().sort({ "created_at": 1 })];
                 case 4:
+                    checkIfAvailable = _a.sent();
+                    return [4 /*yield*/, axios.get(checkIfAvailable["api_link"])];
+                case 5:
                     purchasableResponse = _a.sent();
-                    if (purchasableResponse.data["num_for_sale"] === 0) {
-                        recordModelAll.collection.findOneAndDelete().sort({ "timestamp": -1 });
-                    }
-                    else {
-                        recordModelBuy.create({
+                    console.log("Retest checking: " + purchasableResponse.data["title"] + ' ' + purchasableResponse.data["num_for_sale"]);
+                    if (!(purchasableResponse.data["num_for_sale"] === 0)) return [3 /*break*/, 7];
+                    return [4 /*yield*/, recordModelAll.findOneAndDelete().sort({ "created_at": 1 })];
+                case 6:
+                    _a.sent();
+                    return [3 /*break*/, 11];
+                case 7:
+                    console.log("Retest found: " + purchasableResponse.data["title"] + ' ' + purchasableResponse.data["num_for_sale"]);
+                    return [4 /*yield*/, axios.get(purchasableResponse.data["uri"])];
+                case 8:
+                    getCoverRetry = _a.sent();
+                    $ = cheerio.load(getCoverRetry.data);
+                    cover = $('picture').children('img').eq(0).attr('src');
+                    return [4 /*yield*/, recordModelBuy.create({
                             link: response.data["uri"],
                             api_link: response.data["resource_url"],
                             cover_art: (cover !== undefined) ? cover : ' ',
@@ -191,10 +207,14 @@ function getData() {
                         }, function (err, release) {
                             if (err)
                                 return console.error(err);
-                        });
-                    }
-                    _a.label = 5;
-                case 5:
+                        })];
+                case 9:
+                    _a.sent();
+                    return [4 /*yield*/, recordModelAll.findOneAndDelete().sort({ "created_at": 1 })];
+                case 10:
+                    _a.sent();
+                    _a.label = 11;
+                case 11:
                     recordModelAll.create({
                         link: response.data["uri"],
                         api_link: response.data["resource_url"],
@@ -211,12 +231,12 @@ function getData() {
                         if (err)
                             return console.error(err);
                     });
-                    return [3 /*break*/, 8];
-                case 6: return [4 /*yield*/, recordModelBuy.collection.countDocuments({})];
-                case 7:
+                    return [3 /*break*/, 14];
+                case 12: return [4 /*yield*/, recordModelBuy.collection.countDocuments({})];
+                case 13:
                     findCountBuyable = _a.sent();
                     if (findCountBuyable > 5000) {
-                        recordModelBuy.collection.findOneAndDelete().sort({ "timestamp": 1 });
+                        recordModelBuy.findOneAndDelete().sort({ "created_at": 1 });
                     }
                     else {
                         recordModelBuy.create({
@@ -236,12 +256,12 @@ function getData() {
                                 return console.error(err);
                         });
                     }
-                    _a.label = 8;
-                case 8: return [3 /*break*/, 10];
-                case 9:
+                    _a.label = 14;
+                case 14: return [3 /*break*/, 16];
+                case 15:
                     console.log('Bad response: ' + response.status);
-                    _a.label = 10;
-                case 10: return [2 /*return*/];
+                    _a.label = 16;
+                case 16: return [2 /*return*/];
             }
         });
     });

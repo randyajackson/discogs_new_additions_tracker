@@ -9,6 +9,7 @@ require('dotenv').config({ path: '../.env' });
 
 const api_url: string = "http://api.discogs.com/releases/";
 let start_id: number;
+let badTries: number = 0;
 
 interface album_record {
     link: String,
@@ -63,9 +64,13 @@ async function beginCollection()
         .then(() => {})
         .catch((errors) => {async (errors: Error) => {
             setTimeout( async function(){ 
-                console.log('Error in getdata(), wait 10 minutes and try again' + ' start_id = ' + start_id);
+                console.log('Error in getdata(), wait 5 minutes and try again' + ' start_id = ' + start_id);
+                badTries += 1;
+
+                if(badTries > 3)
+                    start_id += 3;    
                 await getData(); 
-            }, 600000);}   
+            }, 300000);}   
         }); 
 
     }, 3000);
@@ -91,21 +96,35 @@ async function getData(){
     let cover = $('picture').children('img').eq(0).attr('src');
 
     if(response.status === 200){
-        console.log('Status 200: adding ' + response.data["uri"] + ' ' + response.data["title"] + ' ' + (response.data["genres"]?response.data["genres"]:'')  + (cover ? ' with cover' : ' without cover') + ' and ' + response.data["num_for_sale"] + ' for sale. ' + start_id);
+        badTries = 0;
         start_id += 3;
+
+        console.log('Status 200: adding ' + response.data["uri"] + ' ' + response.data["title"] + ' ' + (response.data["genres"]?response.data["genres"]:'')  + (cover ? ' with cover' : ' without cover') + ' and ' + response.data["num_for_sale"] + ' for sale. ' + start_id);
+        
         if(response.data["num_for_sale"] === 0){
 
             const findCountAll = await recordModelAll.collection.countDocuments({});
 
+
             if(findCountAll > 10000){
-                const checkIfAvailable = recordModelAll.collection.find().sort( { 'timestamp': -1 } ).limit(1);
+                const checkIfAvailable = await recordModelAll.findOne().sort({"created_at": 1});
+
                 const purchasableResponse = await axios.get(checkIfAvailable["api_link"]);
 
+                console.log("Retest checking: " + purchasableResponse.data["title"] + ' ' + purchasableResponse.data["num_for_sale"]);
+
                 if(purchasableResponse.data["num_for_sale"] === 0){
-                    recordModelAll.collection.findOneAndDelete().sort({ "timestamp": -1 });
+                    await recordModelAll.findOneAndDelete().sort({"created_at": 1});
                 }
                 else{
-                    recordModelBuy.create({
+
+                    console.log("Retest found: " + purchasableResponse.data["title"] + ' ' + purchasableResponse.data["num_for_sale"]);
+
+                    const getCoverRetry = await axios.get(purchasableResponse.data["uri"]);
+                    $ = cheerio.load(getCoverRetry.data);
+                    cover = $('picture').children('img').eq(0).attr('src');
+
+                    await recordModelBuy.create({
                         link: response.data["uri"],
                         api_link: response.data["resource_url"],
                         cover_art: (cover !== undefined) ? cover : ' ',
@@ -120,7 +139,9 @@ async function getData(){
                     }, 
                     function (err: Error, release: Request) {
                         if(err) return console.error(err);
-                    });    
+                    }); 
+                    
+                    await recordModelAll.findOneAndDelete().sort({"created_at": 1});
                 }
                 
             }
@@ -146,7 +167,7 @@ async function getData(){
             const findCountBuyable = await recordModelBuy.collection.countDocuments({});
 
             if(findCountBuyable > 5000){
-                recordModelBuy.collection.findOneAndDelete().sort({ "timestamp": 1 });    
+                recordModelBuy.findOneAndDelete().sort({"created_at": 1});    
             }
             else{
                 recordModelBuy.create({
