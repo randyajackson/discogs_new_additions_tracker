@@ -58,13 +58,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var mongoose_1 = require("mongoose");
 var fs = __importStar(require("fs"));
 var cheerio = __importStar(require("cheerio"));
-var request = require('request');
 var mongoose = require('mongoose');
 var axios = require('axios');
 require('dotenv').config({ path: '../.env' });
 var api_url = "http://api.discogs.com/releases/";
 var start_id;
-var badTries = 0;
+var newErrorCount = 0;
 var recordSchema = new mongoose_1.Schema({
     link: String,
     api_link: String,
@@ -82,188 +81,164 @@ var db = mongoose.connect(process.env.PURCHASABLE, { useNewUrlParser: true });
 var db2 = mongoose.createConnection(process.env.NON_PURCHASABLE, { useNewUrlParser: true });
 db = mongoose.connection;
 db.on('error', console.error.bind(console, 'connection error: '));
+var recordModelBuy = db.model('new_record_purchasable', recordSchema);
+var recordModelAll = db2.model('new_record_all', recordSchema);
 db.once('open', function () {
     beginCollection();
 });
 function beginCollection() {
     return __awaiter(this, void 0, void 0, function () {
-        var interval;
+        var data, nextAlbum;
+        var _this = this;
         return __generator(this, function (_a) {
-            initialCollection();
-            interval = setInterval(function () {
-                return __awaiter(this, void 0, void 0, function () {
-                    var data;
-                    var _this = this;
-                    return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0:
-                                data = fs.readFileSync('./currentID', 'utf8');
-                                data = String(start_id);
-                                fs.writeFileSync('./currentID', data);
-                                return [4 /*yield*/, getData()
-                                        .then(function () { })
-                                        .catch(function (errors) {
-                                        (function (errors) { return __awaiter(_this, void 0, void 0, function () {
-                                            return __generator(this, function (_a) {
-                                                setTimeout(function () {
-                                                    return __awaiter(this, void 0, void 0, function () {
-                                                        return __generator(this, function (_a) {
-                                                            switch (_a.label) {
-                                                                case 0:
-                                                                    console.log('Error in getdata(), wait 5 minutes and try again' + ' start_id = ' + start_id);
-                                                                    badTries += 1;
-                                                                    if (badTries > 3)
-                                                                        start_id += 3;
-                                                                    return [4 /*yield*/, getData()];
-                                                                case 1:
-                                                                    _a.sent();
-                                                                    return [2 /*return*/];
-                                                            }
-                                                        });
-                                                    });
-                                                }, 300000);
-                                                return [2 /*return*/];
-                                            });
-                                        }); });
-                                    })];
-                            case 1:
-                                _a.sent();
-                                return [2 /*return*/];
-                        }
-                    });
-                });
-            }, 3000);
-            return [2 /*return*/];
+            switch (_a.label) {
+                case 0:
+                    getStartID();
+                    _a.label = 1;
+                case 1:
+                    if (!true) return [3 /*break*/, 3];
+                    data = fs.readFileSync('./currentID', 'utf8');
+                    data = String(start_id);
+                    fs.writeFileSync('./currentID', data);
+                    return [4 /*yield*/, getNextAlbum()
+                            .catch(function (errors) { return __awaiter(_this, void 0, void 0, function () {
+                            return __generator(this, function (_a) {
+                                switch (_a.label) {
+                                    case 0:
+                                        console.log('Error in getdata(), waiting 5 minutes and trying again' + ' start_id = ' + start_id);
+                                        return [4 /*yield*/, new Promise(function (resolve) { return setTimeout(function () {
+                                                newErrorCount++;
+                                                console.log(newErrorCount);
+                                                if (newErrorCount >= 3)
+                                                    start_id += 3;
+                                                resolve(resolve);
+                                            }, 300000); })];
+                                    case 1:
+                                        _a.sent();
+                                        return [2 /*return*/];
+                                }
+                            });
+                        }); })];
+                case 2:
+                    nextAlbum = _a.sent();
+                    if (nextAlbum !== undefined && nextAlbum["response"]["status"] === 200) {
+                        newErrorCount = 0;
+                        start_id += 3;
+                        console.log('Status 200: adding ' + nextAlbum["response"]["data"]["uri"] + ' ' + nextAlbum["response"]["data"]["title"] + ' ' + (nextAlbum["response"]["data"]["genres"] ? nextAlbum["response"]["data"]["genres"] : '') + (nextAlbum["cover"] !== "" ? ' with cover' : ' without cover') + ' and ' + nextAlbum["response"]["data"]["num_for_sale"] + ' for sale. ' + start_id);
+                        console.log(nextAlbum["cover"]);
+                        // if(nextAlbum["response"]["data"]["num_for_sale"] === 0){
+                        //     retestNotForSale();
+                        //     trimForSale();
+                        //     addAlbumToNotForSale(nextAlbum[0], nextAlbum[1]);
+                        // }
+                        // else{
+                        //     trimNotForSale();
+                        //     addAlbumToForSale(nextAlbum[0], nextAlbum[1]);
+                        // }
+                    }
+                    return [3 /*break*/, 1];
+                case 3: return [2 /*return*/];
+            }
         });
     });
 }
-function initialCollection() {
+function getStartID() {
     return __awaiter(this, void 0, void 0, function () {
         var data;
         return __generator(this, function (_a) {
             data = fs.readFileSync('./currentID', 'utf8');
             start_id = Number(data.toString());
-            getData();
             return [2 /*return*/];
         });
     });
 }
-function getData() {
+function getNextAlbum() {
     return __awaiter(this, void 0, void 0, function () {
-        var recordModelBuy, recordModelAll, response, getCover, $, cover, findCountAll, checkIfAvailable, purchasableResponse, getCoverRetry, findCountBuyable;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
+        var returnVars, _a, getCover, $;
+        return __generator(this, function (_b) {
+            switch (_b.label) {
                 case 0:
-                    recordModelBuy = db.model('new_record_purchasable', recordSchema);
-                    recordModelAll = db2.model('new_record_all', recordSchema);
+                    returnVars = {
+                        "response": {},
+                        "cover": ""
+                    };
+                    _a = returnVars;
                     return [4 /*yield*/, axios.get(api_url + String(start_id))];
                 case 1:
-                    response = _a.sent();
-                    return [4 /*yield*/, axios.get(response.data["uri"])];
+                    _a.response = _b.sent();
+                    if (!(returnVars.response !== null)) return [3 /*break*/, 3];
+                    return [4 /*yield*/, axios.get(returnVars["response"]["data"]["uri"])];
                 case 2:
-                    getCover = _a.sent();
-                    $ = cheerio.load(getCover.data);
-                    cover = $('picture').children('img').eq(0).attr('src');
-                    if (!(response.status === 200)) return [3 /*break*/, 15];
-                    badTries = 0;
-                    start_id += 3;
-                    console.log('Status 200: adding ' + response.data["uri"] + ' ' + response.data["title"] + ' ' + (response.data["genres"] ? response.data["genres"] : '') + (cover ? ' with cover' : ' without cover') + ' and ' + response.data["num_for_sale"] + ' for sale. ' + start_id);
-                    if (!(response.data["num_for_sale"] === 0)) return [3 /*break*/, 12];
-                    return [4 /*yield*/, recordModelAll.collection.countDocuments({})];
-                case 3:
-                    findCountAll = _a.sent();
-                    if (!(findCountAll > 10000)) return [3 /*break*/, 11];
-                    return [4 /*yield*/, recordModelAll.findOne().sort({ "created_at": 1 })];
-                case 4:
-                    checkIfAvailable = _a.sent();
-                    return [4 /*yield*/, axios.get(checkIfAvailable["api_link"])];
-                case 5:
-                    purchasableResponse = _a.sent();
-                    console.log("Retest checking: " + purchasableResponse.data["title"] + ' ' + purchasableResponse.data["num_for_sale"]);
-                    if (!(purchasableResponse.data["num_for_sale"] === 0)) return [3 /*break*/, 7];
-                    return [4 /*yield*/, recordModelAll.findOneAndDelete().sort({ "created_at": 1 })];
-                case 6:
-                    _a.sent();
-                    return [3 /*break*/, 11];
-                case 7:
-                    console.log("Retest found: " + purchasableResponse.data["title"] + ' ' + purchasableResponse.data["num_for_sale"]);
-                    return [4 /*yield*/, axios.get(purchasableResponse.data["uri"])];
-                case 8:
-                    getCoverRetry = _a.sent();
-                    $ = cheerio.load(getCoverRetry.data);
-                    cover = $('picture').children('img').eq(0).attr('src');
-                    return [4 /*yield*/, recordModelBuy.create({
-                            link: response.data["uri"],
-                            api_link: response.data["resource_url"],
-                            cover_art: (cover !== undefined) ? cover : ' ',
-                            release_year: response.data["year"],
-                            artist_name: response.data["artists"]["name"],
-                            genres: response.data["genres"],
-                            styles: response.data["styles"],
-                            title: response.data["title"],
-                            date_added: response.data["date_added"],
-                            number_for_sale: response.data["num_for_sale"],
-                            lowest_price: response.data["lowest_price"],
-                        }, function (err, release) {
-                            if (err)
-                                return console.error(err);
-                        })];
-                case 9:
-                    _a.sent();
-                    return [4 /*yield*/, recordModelAll.findOneAndDelete().sort({ "created_at": 1 })];
-                case 10:
-                    _a.sent();
-                    _a.label = 11;
-                case 11:
-                    recordModelAll.create({
-                        link: response.data["uri"],
-                        api_link: response.data["resource_url"],
-                        cover_art: (cover !== undefined) ? cover : ' ',
-                        release_year: response.data["year"],
-                        artist_name: response.data["artists"]["name"],
-                        genres: response.data["genres"],
-                        styles: response.data["styles"],
-                        title: response.data["title"],
-                        date_added: response.data["date_added"],
-                        number_for_sale: response.data["num_for_sale"],
-                        lowest_price: response.data["lowest_price"],
-                    }, function (err, release) {
-                        if (err)
-                            return console.error(err);
-                    });
-                    return [3 /*break*/, 14];
-                case 12: return [4 /*yield*/, recordModelBuy.collection.countDocuments({})];
-                case 13:
-                    findCountBuyable = _a.sent();
-                    if (findCountBuyable > 5000) {
-                        recordModelBuy.findOneAndDelete().sort({ "created_at": 1 });
-                    }
-                    else {
-                        recordModelBuy.create({
-                            link: response.data["uri"],
-                            api_link: response.data["resource_url"],
-                            cover_art: (cover !== undefined) ? cover : ' ',
-                            release_year: response.data["year"],
-                            artist_name: response.data["artists"]["name"],
-                            genres: response.data["genres"],
-                            styles: response.data["styles"],
-                            title: response.data["title"],
-                            date_added: response.data["date_added"],
-                            number_for_sale: response.data["num_for_sale"],
-                            lowest_price: response.data["lowest_price"],
-                        }, function (err, release) {
-                            if (err)
-                                return console.error(err);
-                        });
-                    }
-                    _a.label = 14;
-                case 14: return [3 /*break*/, 16];
-                case 15:
-                    console.log('Bad response: ' + response.status);
-                    _a.label = 16;
-                case 16: return [2 /*return*/];
+                    getCover = _b.sent();
+                    $ = cheerio.load(getCover);
+                    returnVars.cover = $('picture').children('img').eq(0).attr('src');
+                    if (returnVars.cover === undefined)
+                        returnVars.cover = "";
+                    _b.label = 3;
+                case 3: return [2 /*return*/, returnVars];
             }
         });
     });
 }
+// async function retestNotForSale(): Promise<retestAndTrimNotForSaleReturn>{
+//     let returnVars = {"response" : null, "cover": ''};
+//     const findCountNotForSale = await recordModelAll.collection.countDocuments({});
+//     if(findCountNotForSale > 10000){
+//         const check = await fetch(checkIfAvailable["api_link"]);
+//         const purchasableResponse = await axios.get(checkIfAvailable["api_link"]);
+//         console.log("Retest checking: " + purchasablenextAlbum["response"]["title"] + ' ' + purchasablenextAlbum["response"]["num_for_sale"]);
+//         if(purchasablenextAlbum["response"]["num_for_sale"] === 0){
+//             await recordModelAll.findOneAndDelete().sort({"created_at": 1});
+//         }
+//     }
+//     return returnVars;
+// }
+// async function addAlbumToNotForSale(){
+//     await recordModelAll.create({
+//         link: nextAlbum["response"]["uri"],
+//         api_link: nextAlbum["response"]["resource_url"],
+//         cover_art: (cover !== undefined) ? cover : ' ',
+//         release_year: nextAlbum["response"]["year"],
+//         artist_name: nextAlbum["response"]["artists"]["name"],
+//         genres: nextAlbum["response"]["genres"],
+//         styles: nextAlbum["response"]["styles"],
+//         title: nextAlbum["response"]["title"],
+//         date_added: nextAlbum["response"]["date_added"],
+//         number_for_sale: nextAlbum["response"]["num_for_sale"],
+//         lowest_price: nextAlbum["response"]["lowest_price"],
+//     }, 
+//     function (err: Error, release: Request) {
+//         if(err) return console.error(err);
+//     });
+// }
+// async function addAlbumToForSale(){
+//     await recordModelBuy.create({
+//         link: purchasablenextAlbum["response"]["uri"],
+//         api_link: purchasablenextAlbum["response"]["resource_url"],
+//         cover_art: (cover !== undefined) ? cover : ' ',
+//         release_year: purchasablenextAlbum["response"]["year"],
+//         artist_name: purchasablenextAlbum["response"]["artists"]["name"],
+//         genres: purchasablenextAlbum["response"]["genres"],
+//         styles: purchasablenextAlbum["response"]["styles"],
+//         title: purchasablenextAlbum["response"]["title"],
+//         date_added: purchasablenextAlbum["response"]["date_added"],
+//         number_for_sale: purchasablenextAlbum["response"]["num_for_sale"],
+//         lowest_price: purchasablenextAlbum["response"]["lowest_price"],
+//     }, 
+//     function (err: Error, release: Request) {
+//         if(err) return console.error(err);
+//     }); 
+// }
+// async function trimForSale(){
+//     const findCountForSale = await recordModelBuy.collection.countDocuments({});
+//     if(findCountForSale > 5000){
+//         recordModelBuy.findOneAndDelete().sort({"created_at": 1});  
+//     }
+// }
+// async function trimNotForSale(){
+//     const findCountForSale = await recordModelBuy.collection.countDocuments({});
+//     if(findCountForSale > 5000){
+//         recordModelBuy.findOneAndDelete().sort({"created_at": 1});  
+//     }
+// }
 //# sourceMappingURL=discogs_tracker.js.map
