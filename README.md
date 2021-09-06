@@ -1,3 +1,3 @@
 # discogs_new_additions_tracker
 
-Displays the 100 newest additions to Discogs.com and the 100 newest additions with purchasing abilities.
+Displays the 5000 newest purchasable additions to Discogs.com
