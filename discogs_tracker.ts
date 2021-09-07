@@ -10,16 +10,11 @@ require('dotenv').config({ path: '../.env' });
 
 const api_url: string = "http://api.discogs.com/releases/";
 let start_id: number;
-let newErrorCount: number = 0;
+let getNextAlbumErrorCount: number = 0;
 
-type getNextAlbumReturn = {
+type currentRecord = {
     response: AxiosResponse;
     cover: string;
-}
-
-type retestAndTrimNotForSaleReturn = {
-    response: AxiosResponse;
-    cover: String;
 }
 
 interface album_record {
@@ -67,22 +62,25 @@ db.once('open', function() {
 async function beginCollection()
 {
     getStartID();  
+    let data = String(start_id);
 
     while(true){
 
-        let data = fs.readFileSync('./currentID', 'utf8');
         data = String(start_id);
         fs.writeFileSync('./currentID', data);
         
-        const nextAlbum: getNextAlbumReturn | void = await getNextAlbum()
+        //get request for the next new album
+        const nextAlbum: currentRecord | void = await getNextAlbum()
         .catch(async (errors) => {
                 console.log('Error in getdata(), waiting 5 minutes and trying again' + ' start_id = ' + start_id);
                 await new Promise((resolve) => setTimeout(() =>{
 
-                    newErrorCount++;
-                    console.log(newErrorCount);
+                    //If caught up to the latest new ID, there will be a waiting period before the ID has been generated.
+                    //If trying the newest ID for 15 minutes does not work, add 3 to the ID.
+                    getNextAlbumErrorCount++;
+                    console.log("getNextAlbumErrorCount: " + getNextAlbumErrorCount);
 
-                    if(newErrorCount >= 3)
+                    if(getNextAlbumErrorCount >= 3)
                         start_id += 3; 
 
                     resolve(resolve);
@@ -93,19 +91,30 @@ async function beginCollection()
               
 
         if( nextAlbum !== undefined && nextAlbum["response"]["status"] === 200){
-            newErrorCount = 0;
+            
+            getNextAlbumErrorCount = 0;
             start_id += 3; 
+
             console.log('Status 200: adding ' + nextAlbum["response"]["data"]["uri"] + ' ' + nextAlbum["response"]["data"]["title"] + ' ' + (nextAlbum["response"]["data"]["genres"]?nextAlbum["response"]["data"]["genres"]:'')  + (nextAlbum["cover"] !== "" ? ' with cover' : ' without cover') + ' and ' + nextAlbum["response"]["data"]["num_for_sale"] + ' for sale. ' + start_id);
             console.log(nextAlbum["cover"]);
-            // if(nextAlbum["response"]["data"]["num_for_sale"] === 0){
-            //     retestNotForSale();
-            //     trimForSale();
-            //     addAlbumToNotForSale(nextAlbum[0], nextAlbum[1]);
-            // }
-            // else{
-            //     trimNotForSale();
-            //     addAlbumToForSale(nextAlbum[0], nextAlbum[1]);
-            // }
+            
+            if(nextAlbum["response"]["data"]["num_for_sale"] === 0){
+
+                //Check latest record to see if it is now buyable. Add to buyable records if able.
+                //Maintain the total size of 10000 non-buyable records.
+                await retestTrimNotForSale()
+                .catch( async (errors) => {
+                    //If error, then the API link of the last record has been removed causing a 404 error, delete the record.
+                    console.log("Retest API link not found. Deleting record.");
+                    await recordModelAll.findOneAndDelete().sort({"created_at": 1});
+                });
+
+                addAlbumToNotForSale(nextAlbum);
+            }
+            else{
+                trimNotForSale();
+                addAlbumToForSale(nextAlbum);
+            }
 
         }
    
@@ -121,7 +130,7 @@ async function getStartID()
     start_id = Number(data.toString());
 }
 
-async function getNextAlbum(): Promise<getNextAlbumReturn> {
+async function getNextAlbum(): Promise<currentRecord> {
 
     let returnVars = {
                         "response" : <AxiosResponse>{}, 
@@ -142,82 +151,97 @@ async function getNextAlbum(): Promise<getNextAlbumReturn> {
 
 } 
 
-// async function retestNotForSale(): Promise<retestAndTrimNotForSaleReturn>{
+async function retestTrimNotForSale(){
 
-//     let returnVars = {"response" : null, "cover": ''};
+    const findCountNotForSale = await recordModelAll.collection.countDocuments({});
+    console.log("findCountNotForSale: " + findCountNotForSale);
+    if(findCountNotForSale > 10000){
 
-//     const findCountNotForSale = await recordModelAll.collection.countDocuments({});
+        const latestNotForSaleRecord = await recordModelAll.findOne().sort({"created_at": 1});
+        console.log("Retest checking: " + latestNotForSaleRecord["link"] + ' ' + latestNotForSaleRecord["created_at"]);
+        const purchasableResponse = await axios.get(latestNotForSaleRecord["api_link"]);
 
-//     if(findCountNotForSale > 10000){
-//         const check = await fetch(checkIfAvailable["api_link"]);
-//         const purchasableResponse = await axios.get(checkIfAvailable["api_link"]);
-//         console.log("Retest checking: " + purchasablenextAlbum["response"]["title"] + ' ' + purchasablenextAlbum["response"]["num_for_sale"]);
+        if(purchasableResponse["data"]["num_for_sale"] > 0){
 
-//         if(purchasablenextAlbum["response"]["num_for_sale"] === 0){
-//             await recordModelAll.findOneAndDelete().sort({"created_at": 1});
-//         }
-//     }
+            console.log("Retest found new quantity: " + purchasableResponse["data"]["title"] + ' ' + purchasableResponse["data"]["num_for_sale"]);
 
-//     return returnVars;
+            const getCoverRetry = await axios.get(purchasableResponse.data["uri"]);
+            const $ = cheerio.load(getCoverRetry.data);
+            const cover = $('picture').children('img').eq(0).attr('src');
 
-// }
+            await recordModelBuy.create({
+                link: purchasableResponse["data"]["uri"],
+                api_link: purchasableResponse["data"]["resource_url"],
+                cover_art: (cover !== undefined) ? cover : ' ',
+                release_year: purchasableResponse["data"]["year"],
+                artist_name: purchasableResponse["data"]["artists"]["name"],
+                genres: purchasableResponse["data"]["genres"],
+                styles: purchasableResponse["data"]["styles"],
+                title: purchasableResponse["data"]["title"],
+                date_added: purchasableResponse["data"]["date_added"],
+                number_for_sale: purchasableResponse["data"]["num_for_sale"],
+                lowest_price: purchasableResponse["data"]["lowest_price"],
+            }, 
+            function (err: Error, release: Request) {
+                if(err) return console.error(err);
+            });
+        }
+        else{
+            console.log("Retest still shows 0 available: " + purchasableResponse["data"]["title"] + ' ' + purchasableResponse["data"]["num_for_sale"]);
+        }
 
-// async function addAlbumToNotForSale(){
+        await recordModelAll.findOneAndDelete().sort({"created_at": 1});
+    }
 
-//     await recordModelAll.create({
-//         link: nextAlbum["response"]["uri"],
-//         api_link: nextAlbum["response"]["resource_url"],
-//         cover_art: (cover !== undefined) ? cover : ' ',
-//         release_year: nextAlbum["response"]["year"],
-//         artist_name: nextAlbum["response"]["artists"]["name"],
-//         genres: nextAlbum["response"]["genres"],
-//         styles: nextAlbum["response"]["styles"],
-//         title: nextAlbum["response"]["title"],
-//         date_added: nextAlbum["response"]["date_added"],
-//         number_for_sale: nextAlbum["response"]["num_for_sale"],
-//         lowest_price: nextAlbum["response"]["lowest_price"],
-//     }, 
-//     function (err: Error, release: Request) {
-//         if(err) return console.error(err);
-//     });
+}
 
-// }
+async function addAlbumToNotForSale(nextAlbum: currentRecord){
 
-// async function addAlbumToForSale(){
+    await recordModelAll.create({
+        link: nextAlbum["response"]["data"]["uri"],
+        api_link: nextAlbum["response"]["data"]["resource_url"],
+        cover_art: (nextAlbum["cover"] !== undefined) ? nextAlbum["cover"] : ' ',
+        release_year: nextAlbum["response"]["data"]["year"],
+        artist_name: nextAlbum["response"]["data"]["artists"]["name"],
+        genres: nextAlbum["response"]["data"]["genres"],
+        styles: nextAlbum["response"]["data"]["styles"],
+        title: nextAlbum["response"]["data"]["title"],
+        date_added: nextAlbum["response"]["data"]["date_added"],
+        number_for_sale: nextAlbum["response"]["data"]["num_for_sale"],
+        lowest_price: nextAlbum["response"]["data"]["lowest_price"],
+    }, 
+    function (err: Error, release: Request) {
+        if(err) return console.error(err);
+    });
 
-//     await recordModelBuy.create({
-//         link: purchasablenextAlbum["response"]["uri"],
-//         api_link: purchasablenextAlbum["response"]["resource_url"],
-//         cover_art: (cover !== undefined) ? cover : ' ',
-//         release_year: purchasablenextAlbum["response"]["year"],
-//         artist_name: purchasablenextAlbum["response"]["artists"]["name"],
-//         genres: purchasablenextAlbum["response"]["genres"],
-//         styles: purchasablenextAlbum["response"]["styles"],
-//         title: purchasablenextAlbum["response"]["title"],
-//         date_added: purchasablenextAlbum["response"]["date_added"],
-//         number_for_sale: purchasablenextAlbum["response"]["num_for_sale"],
-//         lowest_price: purchasablenextAlbum["response"]["lowest_price"],
-//     }, 
-//     function (err: Error, release: Request) {
-//         if(err) return console.error(err);
-//     }); 
+}
 
-// }
+async function addAlbumToForSale(nextAlbum: currentRecord){
 
-// async function trimForSale(){
+    await recordModelBuy.create({
+        link: nextAlbum["response"]["data"]["uri"],
+        api_link: nextAlbum["response"]["data"]["resource_url"],
+        cover_art: (nextAlbum["cover"] !== undefined) ? nextAlbum["cover"] : ' ',
+        release_year: nextAlbum["response"]["data"]["year"],
+        artist_name: nextAlbum["response"]["data"]["artists"]["name"],
+        genres: nextAlbum["response"]["data"]["genres"],
+        styles: nextAlbum["response"]["data"]["styles"],
+        title: nextAlbum["response"]["data"]["title"],
+        date_added: nextAlbum["response"]["data"]["date_added"],
+        number_for_sale: nextAlbum["response"]["data"]["num_for_sale"],
+        lowest_price: nextAlbum["response"]["data"]["lowest_price"],
+    }, 
+    function (err: Error, release: Request) {
+        if(err) return console.error(err);
+    }); 
 
-//     const findCountForSale = await recordModelBuy.collection.countDocuments({});
+}
+
+async function trimNotForSale(){
+
+    const findCountForSale = await recordModelBuy.collection.countDocuments({});
     
-//     if(findCountForSale > 5000){
-//         recordModelBuy.findOneAndDelete().sort({"created_at": 1});  
-//     }
-// }
-
-// async function trimNotForSale(){
-
-//     const findCountForSale = await recordModelBuy.collection.countDocuments({});
-    
-//     if(findCountForSale > 5000){
-//         recordModelBuy.findOneAndDelete().sort({"created_at": 1});  
-//     }
-// }
+    if(findCountForSale > 5000){
+        recordModelBuy.findOneAndDelete().sort({"created_at": 1});  
+    }
+}
