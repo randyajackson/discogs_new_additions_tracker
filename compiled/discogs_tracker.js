@@ -110,8 +110,8 @@ function beginCollection() {
                                                 //If caught up to the latest new ID, there will be a waiting period before the ID has been generated.
                                                 //If trying the newest ID for 15 minutes does not work, add 3 to the ID.
                                                 getNextAlbumErrorCount++;
-                                                console.log("getNextAlbumErrorCount: " + getNextAlbumErrorCount);
-                                                if (getNextAlbumErrorCount >= 3)
+                                                console.log("Error count: " + getNextAlbumErrorCount);
+                                                if (getNextAlbumErrorCount >= 10)
                                                     start_id += 3;
                                                 resolve(resolve);
                                             }, 300000); })];
