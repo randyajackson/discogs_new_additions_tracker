@@ -84,7 +84,12 @@ db.on('error', console.error.bind(console, 'connection error: '));
 var recordModelBuy = db.model('new_record_purchasable', recordSchema);
 var recordModelAll = db2.model('new_record_all', recordSchema);
 db.once('open', function () {
-    beginCollection();
+    return __awaiter(this, void 0, void 0, function () {
+        return __generator(this, function (_a) {
+            beginCollection();
+            return [2 /*return*/];
+        });
+    });
 });
 function beginCollection() {
     return __awaiter(this, void 0, void 0, function () {
@@ -111,7 +116,7 @@ function beginCollection() {
                                                 //If trying the newest ID for 15 minutes does not work, add 3 to the ID.
                                                 getNextAlbumErrorCount++;
                                                 console.log("Error count: " + getNextAlbumErrorCount);
-                                                if (getNextAlbumErrorCount >= 10)
+                                                if (getNextAlbumErrorCount >= 5)
                                                     start_id += 3;
                                                 resolve(resolve);
                                             }, 300000); })];
@@ -189,7 +194,7 @@ function getNextAlbum() {
                     return [4 /*yield*/, axios.get(returnVars["response"]["data"]["uri"])];
                 case 2:
                     getCover = _b.sent();
-                    $ = cheerio.load(getCover);
+                    $ = cheerio.load(getCover.data);
                     returnVars.cover = $('picture').children('img').eq(0).attr('src');
                     if (returnVars.cover === undefined)
                         returnVars.cover = "";
@@ -223,6 +228,7 @@ function retestTrimNotForSale() {
                     getCoverRetry = _a.sent();
                     $ = cheerio.load(getCoverRetry.data);
                     cover = $('picture').children('img').eq(0).attr('src');
+                    console.log(cover);
                     return [4 /*yield*/, recordModelBuy.create({
                             link: purchasableResponse["data"]["uri"],
                             api_link: purchasableResponse["data"]["resource_url"],
