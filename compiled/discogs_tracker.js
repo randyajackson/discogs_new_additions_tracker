@@ -223,11 +223,14 @@ function retestTrimNotForSale() {
                     purchasableResponse = _a.sent();
                     if (!(purchasableResponse["data"]["num_for_sale"] > 0)) return [3 /*break*/, 6];
                     console.log("Retest found new quantity: " + purchasableResponse["data"]["title"] + ' ' + purchasableResponse["data"]["num_for_sale"]);
+                    trimNotForSale();
                     return [4 /*yield*/, axios.get(purchasableResponse.data["uri"])];
                 case 4:
                     getCoverRetry = _a.sent();
                     $ = cheerio.load(getCoverRetry.data);
                     cover = $('picture').children('img').eq(0).attr('src');
+                    if (cover === undefined)
+                        cover = "";
                     console.log(cover);
                     return [4 /*yield*/, recordModelBuy.create({
                             link: purchasableResponse["data"]["uri"],

@@ -55,7 +55,7 @@ db.on('error', console.error.bind(console, 'connection error: '));
 var recordModelBuy = db.model('new_record_purchasable', recordSchema);
 var recordModelAll = db2.model('new_record_all', recordSchema);
 
-db.once('open', function() {
+db.once('open', async function() {
     beginCollection();
 });
 
@@ -79,7 +79,7 @@ async function beginCollection()
                     //If trying the newest ID for 15 minutes does not work, add 3 to the ID.
                     getNextAlbumErrorCount++;
                     console.log("Error count: " + getNextAlbumErrorCount);
-                    if(getNextAlbumErrorCount >= 10)
+                    if(getNextAlbumErrorCount >= 5)
                         start_id += 3; 
 
                     resolve(resolve);
@@ -139,7 +139,7 @@ async function getNextAlbum(): Promise<currentRecord> {
     returnVars.response = await axios.get(api_url + String(start_id));
     if(returnVars.response !== null){
         const getCover = await axios.get(returnVars["response"]["data"]["uri"]);
-        let $ = cheerio.load(getCover);
+        let $ = cheerio.load(getCover.data);
         returnVars.cover = $('picture').children('img').eq(0).attr('src')!;
         if(returnVars.cover === undefined)
             returnVars.cover = "";
@@ -163,9 +163,15 @@ async function retestTrimNotForSale(){
 
             console.log("Retest found new quantity: " + purchasableResponse["data"]["title"] + ' ' + purchasableResponse["data"]["num_for_sale"]);
 
+            trimNotForSale();
+            
             const getCoverRetry = await axios.get(purchasableResponse.data["uri"]);
             const $ = cheerio.load(getCoverRetry.data);
-            const cover = $('picture').children('img').eq(0).attr('src');
+            let cover = $('picture').children('img').eq(0).attr('src')!;
+            if(cover === undefined)
+                cover = "";
+
+            console.log(cover);
 
             await recordModelBuy.create({
                 link: purchasableResponse["data"]["uri"],
