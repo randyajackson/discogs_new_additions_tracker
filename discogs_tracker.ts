@@ -100,7 +100,7 @@ async function beginCollection()
             if(nextAlbum["response"]["data"]["num_for_sale"] === 0){
 
                 //Check latest record to see if it is now buyable. Add to buyable records if able.
-                //Maintain the total size of 10000 non-buyable records.
+                //Maintain the total size of 5000 non-buyable records.
                 await retestTrimNotForSale()
                 .catch( async (errors) => {
                     //If error, then the API link of the last record has been removed causing a 404 error, delete the record.
@@ -111,8 +111,8 @@ async function beginCollection()
                 addAlbumToNotForSale(nextAlbum);
             }
             else{
-                trimNotForSale();
-                addAlbumToForSale(nextAlbum);
+                await trimNotForSale();
+                await addAlbumToForSale(nextAlbum);
             }
 
         }
@@ -163,7 +163,7 @@ async function retestTrimNotForSale(){
 
             console.log("Retest found new quantity: " + purchasableResponse["data"]["title"] + ' ' + purchasableResponse["data"]["num_for_sale"]);
 
-            trimNotForSale();
+            await trimNotForSale();
             
             const getCoverRetry = await axios.get(purchasableResponse.data["uri"]);
             const $ = cheerio.load(getCoverRetry.data);

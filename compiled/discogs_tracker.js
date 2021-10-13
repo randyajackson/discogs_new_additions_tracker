@@ -102,7 +102,7 @@ function beginCollection() {
                     data = String(start_id);
                     _a.label = 1;
                 case 1:
-                    if (!true) return [3 /*break*/, 6];
+                    if (!true) return [3 /*break*/, 8];
                     data = String(start_id);
                     fs.writeFileSync('./currentID', data);
                     return [4 /*yield*/, getNextAlbum()
@@ -128,14 +128,14 @@ function beginCollection() {
                         }); })];
                 case 2:
                     nextAlbum = _a.sent();
-                    if (!(nextAlbum !== undefined && nextAlbum["response"]["status"] === 200)) return [3 /*break*/, 5];
+                    if (!(nextAlbum !== undefined && nextAlbum["response"]["status"] === 200)) return [3 /*break*/, 7];
                     getNextAlbumErrorCount = 0;
                     start_id += 3;
                     console.log('Status 200: adding ' + nextAlbum["response"]["data"]["uri"] + ' ' + nextAlbum["response"]["data"]["title"] + ' ' + (nextAlbum["response"]["data"]["genres"] ? nextAlbum["response"]["data"]["genres"] : '') + (nextAlbum["cover"] !== "" ? ' with cover' : ' without cover') + ' and ' + nextAlbum["response"]["data"]["num_for_sale"] + ' for sale. ' + start_id);
                     console.log(nextAlbum["cover"]);
                     if (!(nextAlbum["response"]["data"]["num_for_sale"] === 0)) return [3 /*break*/, 4];
                     //Check latest record to see if it is now buyable. Add to buyable records if able.
-                    //Maintain the total size of 10000 non-buyable records.
+                    //Maintain the total size of 5000 non-buyable records.
                     return [4 /*yield*/, retestTrimNotForSale()
                             .catch(function (errors) { return __awaiter(_this, void 0, void 0, function () {
                             return __generator(this, function (_a) {
@@ -152,16 +152,19 @@ function beginCollection() {
                         }); })];
                 case 3:
                     //Check latest record to see if it is now buyable. Add to buyable records if able.
-                    //Maintain the total size of 10000 non-buyable records.
+                    //Maintain the total size of 5000 non-buyable records.
                     _a.sent();
                     addAlbumToNotForSale(nextAlbum);
-                    return [3 /*break*/, 5];
-                case 4:
-                    trimNotForSale();
-                    addAlbumToForSale(nextAlbum);
-                    _a.label = 5;
-                case 5: return [3 /*break*/, 1];
-                case 6: return [2 /*return*/];
+                    return [3 /*break*/, 7];
+                case 4: return [4 /*yield*/, trimNotForSale()];
+                case 5:
+                    _a.sent();
+                    return [4 /*yield*/, addAlbumToForSale(nextAlbum)];
+                case 6:
+                    _a.sent();
+                    _a.label = 7;
+                case 7: return [3 /*break*/, 1];
+                case 8: return [2 /*return*/];
             }
         });
     });
@@ -213,7 +216,7 @@ function retestTrimNotForSale() {
                 case 1:
                     findCountNotForSale = _a.sent();
                     console.log("findCountNotForSale: " + findCountNotForSale);
-                    if (!(findCountNotForSale > 10000)) return [3 /*break*/, 9];
+                    if (!(findCountNotForSale > 10000)) return [3 /*break*/, 10];
                     return [4 /*yield*/, recordModelAll.findOne().sort({ "created_at": 1 })];
                 case 2:
                     latestNotForSaleRecord = _a.sent();
@@ -221,11 +224,13 @@ function retestTrimNotForSale() {
                     return [4 /*yield*/, axios.get(latestNotForSaleRecord["api_link"])];
                 case 3:
                     purchasableResponse = _a.sent();
-                    if (!(purchasableResponse["data"]["num_for_sale"] > 0)) return [3 /*break*/, 6];
+                    if (!(purchasableResponse["data"]["num_for_sale"] > 0)) return [3 /*break*/, 7];
                     console.log("Retest found new quantity: " + purchasableResponse["data"]["title"] + ' ' + purchasableResponse["data"]["num_for_sale"]);
-                    trimNotForSale();
-                    return [4 /*yield*/, axios.get(purchasableResponse.data["uri"])];
+                    return [4 /*yield*/, trimNotForSale()];
                 case 4:
+                    _a.sent();
+                    return [4 /*yield*/, axios.get(purchasableResponse.data["uri"])];
+                case 5:
                     getCoverRetry = _a.sent();
                     $ = cheerio.load(getCoverRetry.data);
                     cover = $('picture').children('img').eq(0).attr('src');
@@ -248,17 +253,17 @@ function retestTrimNotForSale() {
                             if (err)
                                 return console.error(err);
                         })];
-                case 5:
-                    _a.sent();
-                    return [3 /*break*/, 7];
                 case 6:
-                    console.log("Retest still shows 0 available: " + purchasableResponse["data"]["title"] + ' ' + purchasableResponse["data"]["num_for_sale"]);
-                    _a.label = 7;
-                case 7: return [4 /*yield*/, recordModelAll.findOneAndDelete().sort({ "created_at": 1 })];
-                case 8:
                     _a.sent();
-                    _a.label = 9;
-                case 9: return [2 /*return*/];
+                    return [3 /*break*/, 8];
+                case 7:
+                    console.log("Retest still shows 0 available: " + purchasableResponse["data"]["title"] + ' ' + purchasableResponse["data"]["num_for_sale"]);
+                    _a.label = 8;
+                case 8: return [4 /*yield*/, recordModelAll.findOneAndDelete().sort({ "created_at": 1 })];
+                case 9:
+                    _a.sent();
+                    _a.label = 10;
+                case 10: return [2 /*return*/];
             }
         });
     });
