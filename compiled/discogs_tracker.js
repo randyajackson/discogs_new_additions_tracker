@@ -156,7 +156,7 @@ function beginCollection() {
                     _a.sent();
                     addAlbumToNotForSale(nextAlbum);
                     return [3 /*break*/, 7];
-                case 4: return [4 /*yield*/, trimNotForSale()];
+                case 4: return [4 /*yield*/, trimForSale()];
                 case 5:
                     _a.sent();
                     return [4 /*yield*/, addAlbumToForSale(nextAlbum)];
@@ -226,7 +226,7 @@ function retestTrimNotForSale() {
                     purchasableResponse = _a.sent();
                     if (!(purchasableResponse["data"]["num_for_sale"] > 0)) return [3 /*break*/, 7];
                     console.log("Retest found new quantity: " + purchasableResponse["data"]["title"] + ' ' + purchasableResponse["data"]["num_for_sale"]);
-                    return [4 /*yield*/, trimNotForSale()];
+                    return [4 /*yield*/, trimForSale()];
                 case 4:
                     _a.sent();
                     return [4 /*yield*/, axios.get(purchasableResponse.data["uri"])];
@@ -322,7 +322,7 @@ function addAlbumToForSale(nextAlbum) {
         });
     });
 }
-function trimNotForSale() {
+function trimForSale() {
     return __awaiter(this, void 0, void 0, function () {
         var findCountForSale;
         return __generator(this, function (_a) {
@@ -330,10 +330,12 @@ function trimNotForSale() {
                 case 0: return [4 /*yield*/, recordModelBuy.collection.countDocuments({})];
                 case 1:
                     findCountForSale = _a.sent();
-                    if (findCountForSale > 5000) {
-                        recordModelBuy.findOneAndDelete().sort({ "created_at": 1 });
-                    }
-                    return [2 /*return*/];
+                    if (!(findCountForSale > 5000)) return [3 /*break*/, 3];
+                    return [4 /*yield*/, recordModelBuy.findOneAndDelete().sort({ "created_at": 1 })];
+                case 2:
+                    _a.sent();
+                    _a.label = 3;
+                case 3: return [2 /*return*/];
             }
         });
     });

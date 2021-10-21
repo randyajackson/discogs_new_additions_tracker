@@ -111,7 +111,7 @@ async function beginCollection()
                 addAlbumToNotForSale(nextAlbum);
             }
             else{
-                await trimNotForSale();
+                await trimForSale();
                 await addAlbumToForSale(nextAlbum);
             }
 
@@ -163,7 +163,7 @@ async function retestTrimNotForSale(){
 
             console.log("Retest found new quantity: " + purchasableResponse["data"]["title"] + ' ' + purchasableResponse["data"]["num_for_sale"]);
 
-            await trimNotForSale();
+            await trimForSale();
             
             const getCoverRetry = await axios.get(purchasableResponse.data["uri"]);
             const $ = cheerio.load(getCoverRetry.data);
@@ -241,11 +241,11 @@ async function addAlbumToForSale(nextAlbum: currentRecord){
 
 }
 
-async function trimNotForSale(){
+async function trimForSale(){
 
     const findCountForSale = await recordModelBuy.collection.countDocuments({});
-    
+
     if(findCountForSale > 5000){
-        recordModelBuy.findOneAndDelete().sort({"created_at": 1});  
+        await recordModelBuy.findOneAndDelete().sort({"created_at": 1});  
     }
 }
